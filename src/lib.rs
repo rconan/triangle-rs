@@ -1,4 +1,6 @@
+use plotters::prelude::*;
 use std::ffi::CString;
+use std::path::Path;
 
 //include!("bindings.rs");
 
@@ -47,6 +49,57 @@ pub struct Delaunay {
     pub points: Vec<f64>,
     pub triangles: Vec<Vec<i32>>,
 }
+
+pub trait TriDraw {
+    fn mesh<T: AsRef<Path>>(&self, path: T);
+}
+impl TriDraw for Delaunay {
+    fn mesh<T: AsRef<Path>>(&self, path: T) {
+        let plot = BitMapBackend::new(&path, (768, 768)).into_drawing_area();
+        plot.fill(&WHITE).unwrap();
+        let mut chart = ChartBuilder::on(&plot)
+            .set_label_area_size(LabelAreaPosition::Left, 40)
+            .set_label_area_size(LabelAreaPosition::Bottom, 40)
+            .build_cartesian_2d(-2.0..2.0, -2.0..2.0)
+            .unwrap();
+        chart.configure_mesh().draw().unwrap();
+        let p_x: Vec<_> = self.points.clone().into_iter().step_by(2).collect();
+        let p_y: Vec<_> = self.points.clone().into_iter().skip(1).step_by(2).collect();
+        chart
+            .draw_series(
+                p_x.iter()
+                    .cloned()
+                    .zip(p_y.iter().cloned())
+                    .map(|p| Circle::new(p, 5, &RED)),
+            )
+            .unwrap();
+        let vertices: Vec<Vec<(f64, f64)>> = self
+            .triangles
+            .iter()
+            .map(|t| {
+                t.iter()
+                    .map(|&i| (p_x[i as usize], p_y[i as usize]))
+                    .collect::<Vec<(f64, f64)>>()
+            })
+            .collect();
+        /*
+        vertices.iter().for_each(|v| {
+            chart
+                .draw_series(std::iter::once(Polygon::new(v.clone(), &RED.mix(0.2))))
+                .unwrap();
+        });
+        */
+        vertices.iter().for_each(|v| {
+            chart
+                .draw_series(LineSeries::new(
+                    v.iter().cycle().take(4).map(|(x, y)| (*x, *y)),
+                    &BLACK,
+                ))
+                .unwrap();
+        });
+    }
+}
+
 impl Delaunay {
     pub fn new() -> Self {
         Self {
@@ -105,8 +158,6 @@ impl Builder {
             }
         }
         let mut delaunay: triangulateio = unsafe { std::mem::zeroed() };
-        let mut dtri = Delaunay::new();
-        //delaunay.pointlist = dtri.points.as_mut_ptr() as *mut _;
         let switches = CString::new("z").unwrap();
         unsafe {
             let mut empty_tri: triangulateio = std::mem::zeroed();
@@ -118,7 +169,7 @@ impl Builder {
             )
         };
         let points: Vec<f64> = unsafe {
-            let n = delaunay.numberofpoints as usize;
+            let n = delaunay.numberofpoints as usize * 2;
             Vec::from_raw_parts(delaunay.pointlist, n, n)
         };
         let triangles: Vec<Vec<i32>> = unsafe {

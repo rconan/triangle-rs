@@ -10,3 +10,6 @@ cc = "1.0.66"
 
 [dev-dependencies]
 plotters = "0.3.0"
+
+[dependencies]
+plotters = "0.3.0"

@@ -1,5 +1,5 @@
-use plotters::prelude::*;
 use triangle_rs as dtri;
+use triangle_rs::TriDraw;
 
 fn main() {
     let p_x: Vec<f64> = vec![0., 1., 0., -1., 0., 1.];
@@ -9,6 +9,8 @@ fn main() {
         .build();
     println!("Delaunay: {:#?}", tri);
 
+    tri.mesh("examples/delaunay.png");
+    /*
     let plot = BitMapBackend::new("examples/delaunay.png", (768, 768)).into_drawing_area();
     plot.fill(&WHITE).unwrap();
     let mut chart = ChartBuilder::on(&plot)
@@ -49,4 +51,5 @@ fn main() {
             ))
             .unwrap();
     });
+    */
 }
