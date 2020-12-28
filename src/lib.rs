@@ -115,12 +115,13 @@ pub enum TriangulateIO {
 
 pub struct Builder {
     triangulate_io: Vec<TriangulateIO>,
+    switches: String,
 }
-
 impl Builder {
     pub fn new() -> Self {
         Self {
             triangulate_io: vec![],
+            switches: "z".to_owned(),
         }
     }
     pub fn set_points(self, x: Vec<f64>, y: Vec<f64>) -> Self {
@@ -134,6 +135,13 @@ impl Builder {
         data.push(TriangulateIO::Points(xy));
         Self {
             triangulate_io: data,
+            ..self
+        }
+    }
+    pub fn set_switches(self, switches: &str) -> Self {
+        Self {
+            switches: format!("z{}",switches),
+            ..self
         }
     }
     pub fn build(self) -> Delaunay {
@@ -157,7 +165,7 @@ impl Builder {
             }
         }
         let mut delaunay: triangulateio = unsafe { std::mem::zeroed() };
-        let switches = CString::new("z").unwrap();
+        let switches = CString::new(self.switches).unwrap();
         unsafe {
             let mut empty_tri: triangulateio = std::mem::zeroed();
             triangulate(
