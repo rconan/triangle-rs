@@ -70,7 +70,7 @@ impl TriDraw for Delaunay {
                 p_x.iter()
                     .cloned()
                     .zip(p_y.iter().cloned())
-                    .map(|p| Circle::new(p, 5, &RED)),
+                    .map(|p| Circle::new(p, 3, RED.filled())),
             )
             .unwrap();
         let vertices: Vec<Vec<(f64, f64)>> = self
