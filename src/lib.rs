@@ -57,7 +57,7 @@ impl TriDraw for Delaunay {
     fn mesh<T: AsRef<Path>>(&self, path: T, lim: f64) {
         let p_x: Vec<_> = self.points.clone().into_iter().step_by(2).collect();
         let p_y: Vec<_> = self.points.clone().into_iter().skip(1).step_by(2).collect();
-        let plot = BitMapBackend::new(&path, (768, 768)).into_drawing_area();
+        let plot = SVGBackend::new(&path, (768, 768)).into_drawing_area();
         plot.fill(&WHITE).unwrap();
         let mut chart = ChartBuilder::on(&plot)
             .set_label_area_size(LabelAreaPosition::Left, 40)

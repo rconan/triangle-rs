@@ -7,7 +7,7 @@ fn main() {
     let tri = dtri::Builder::new().set_points(p_x, p_y).build();
     println!("Delaunay: {:#?}", tri);
 
-    tri.mesh("examples/delaunay.png", 2f64);
+    tri.mesh("examples/delaunay.svg", 2f64);
     /*
     let plot = BitMapBackend::new("examples/delaunay.png", (768, 768)).into_drawing_area();
     plot.fill(&WHITE).unwrap();
