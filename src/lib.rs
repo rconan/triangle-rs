@@ -151,7 +151,6 @@ impl Builder {
         for t in self.triangulate_io {
             match t {
                 Points(mut p) => {
-                    println!("p: {:?}", p);
                     tri_io.numberofpoints = p.len() as i32 / 2;
                     tri_io.pointlist = p.as_mut_ptr();
                 }

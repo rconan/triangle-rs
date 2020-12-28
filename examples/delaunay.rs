@@ -5,7 +5,7 @@ fn main() {
     let p_x: Vec<f64> = vec![0., 1., 0., -1., 0., 1.];
     let p_y: Vec<f64> = vec![0., 0., 1., 0., -1.5, 1.5];
     let tri = dtri::Builder::new()
-        .set_points(p_x.clone(), p_y.clone())
+        .set_points(p_x, p_y)
         .build();
     println!("Delaunay: {:#?}", tri);
 
