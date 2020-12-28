@@ -65,14 +65,6 @@ impl TriDraw for Delaunay {
             .build_cartesian_2d(-lim..lim, -lim..lim)
             .unwrap();
         chart.configure_mesh().draw().unwrap();
-        chart
-            .draw_series(
-                p_x.iter()
-                    .cloned()
-                    .zip(p_y.iter().cloned())
-                    .map(|p| Circle::new(p, 3, RED.filled())),
-            )
-            .unwrap();
         let vertices: Vec<Vec<(f64, f64)>> = self
             .triangles
             .iter()
@@ -97,6 +89,14 @@ impl TriDraw for Delaunay {
                 ))
                 .unwrap();
         });
+        chart
+            .draw_series(
+                p_x.iter()
+                    .cloned()
+                    .zip(p_y.iter().cloned())
+                    .map(|p| Circle::new(p, 3, RED.filled())),
+            )
+            .unwrap();
     }
 }
 
