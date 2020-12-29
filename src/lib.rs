@@ -89,6 +89,7 @@ impl TriDraw for Delaunay {
                 ))
                 .unwrap();
         });
+        /*
         chart
             .draw_series(
                 p_x.iter()
@@ -97,6 +98,7 @@ impl TriDraw for Delaunay {
                     .map(|p| Circle::new(p, 3, RED.filled())),
             )
             .unwrap();
+        */
     }
 }
 
