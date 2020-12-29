@@ -47,7 +47,7 @@ extern "C" {
 #[derive(Debug)]
 pub struct Delaunay {
     pub points: Vec<f64>,
-    pub triangles: Vec<Vec<i32>>,
+    pub triangles: Vec<usize>,
 }
 
 pub trait TriDraw {
@@ -55,8 +55,8 @@ pub trait TriDraw {
 }
 impl TriDraw for Delaunay {
     fn mesh<T: AsRef<Path>>(&self, path: T, lim: f64) {
-        let p_x: Vec<_> = self.points.clone().into_iter().step_by(2).collect();
-        let p_y: Vec<_> = self.points.clone().into_iter().skip(1).step_by(2).collect();
+        let p_x: Vec<_> = self.points.chunks(2).map(|x| x[0]).collect();
+        let p_y: Vec<_> = self.points.chunks(2).map(|x| x[1]).collect();
         let plot = SVGBackend::new(&path, (768, 768)).into_drawing_area();
         plot.fill(&WHITE).unwrap();
         let mut chart = ChartBuilder::on(&plot)
@@ -67,7 +67,7 @@ impl TriDraw for Delaunay {
         chart.configure_mesh().draw().unwrap();
         let vertices: Vec<Vec<(f64, f64)>> = self
             .triangles
-            .iter()
+            .chunks(3)
             .map(|t| {
                 t.iter()
                     .map(|&i| (p_x[i as usize], p_y[i as usize]))
@@ -107,6 +107,87 @@ impl Delaunay {
             triangles: vec![],
         }
     }
+    pub fn n_triangles(&self) -> usize {
+        self.triangles.len() / 3
+    }
+    pub fn is_point_inside(&self, point: &[f64], triangle_id: usize) -> bool {
+        let triangle = self.triangles.chunks(3).nth(triangle_id).unwrap();
+        let points: Vec<&[f64]> = self.points.chunks(2).collect();
+        for i in 0..3 {
+            let j = (i + 1) % 3;
+            let vi = triangle[i];
+            let vj = triangle[j];
+            let d = (points[vj][0] - points[vi][0]) * (point[1] - points[vi][1])
+                - (points[vj][1] - points[vi][1]) * (point[0] - points[vi][0]);
+            if d < 0. && d.abs() > 1e-9 {
+                return false;
+            }
+        }
+        true
+    }
+    pub fn which_contains_point(&self, point: &[f64]) -> Option<usize> {
+        for k in 0..self.n_triangles() {
+            if self.is_point_inside(point, k) {
+                return Some(k);
+            }
+        }
+        None
+    }
+    pub fn point_into_barycentric(&self, point: &[f64], triangle_ids: &[usize]) -> [f64; 3] {
+        let points: Vec<&[f64]> = self.points.chunks(2).collect();
+        let v: Vec<&[f64]> = triangle_ids.iter().map(|&i| points[i]).collect();
+        let area =
+            (v[1][1] - v[2][1]) * (v[0][0] - v[2][0]) + (v[2][0] - v[1][0]) * (v[0][1] - v[2][1]);
+        let w0 = ((v[1][1] - v[2][1]) * (point[0] - v[2][0])
+            + (v[2][0] - v[1][0]) * (point[1] - v[2][1]))
+            / area;
+        let w1 = ((v[2][1] - v[0][1]) * (point[0] - v[2][0])
+            + (v[0][0] - v[2][0]) * (point[1] - v[2][1]))
+            / area;
+        [w0, w1, 1. - w0 - w1]
+    }
+    pub fn barycentric_interpolation(&self, point: &[f64], val_at_points: &[f64]) -> f64 {
+        match self.which_contains_point(point) {
+            Some(tid) => {
+                let triangle_ids = self.triangles.chunks(3).nth(tid).unwrap();
+                let values: Vec<f64> = triangle_ids.iter().map(|&i| val_at_points[i]).collect();
+                self.point_into_barycentric(point, triangle_ids)
+                    .iter()
+                    .zip(values.iter())
+                    .fold(0., |a, (w, v)| a + w * v)
+            }
+            None => std::f64::NAN,
+        }
+    }
+    /*
+    pub fn linear_interpolation(&self, point: &[f64], val_at_points: &[f64]) -> f64 {
+        match self.contain_point(point) {
+            Some(tid) => {
+                println!("Triangle #{}", tid);
+                let ipts = self.triangles[tid].clone();
+                let mut wgts = vec![0f64; 3];
+                for i in 0..3 {
+                    //let j = if i + 1 == 3 { 0 } else { i + 1 };
+                    //let k = if i + 2 == 3 { 0 } else { i + 2 };
+                    let j = (i + 1) % 3;
+                    let k = (i + 2) % 3;
+                    wgts[k] = (self.points[ipts[j]][0] - self.points[ipts[i]][0])
+                        * (point[1] - self.points[ipts[i]][1])
+                        - (self.points[ipts[j]][1] - self.points[ipts[i]][1])
+                            * (point[0] - self.points[ipts[i]][0]);
+                }
+                println!("weights: {:?}", wgts);
+                let sum: f64 = wgts.iter().sum();
+                let values: Vec<f64> = ipts.iter().map(|k| val_at_points[*k]).collect();
+                println!("values: {:?}", values);
+                wgts.iter()
+                    .zip(values.iter())
+                    .fold(0f64, |a, (w, v)| a + w * v / sum)
+            }
+            None => std::f64::NAN,
+        }
+    }
+    */
 }
 
 pub enum TriangulateIO {
@@ -140,7 +221,7 @@ impl Builder {
     }
     pub fn set_switches(self, switches: &str) -> Self {
         Self {
-            switches: format!("z{}",switches),
+            switches: format!("z{}", switches),
             ..self
         }
     }
@@ -179,12 +260,12 @@ impl Builder {
             let n = delaunay.numberofpoints as usize * 2;
             Vec::from_raw_parts(delaunay.pointlist, n, n)
         };
-        let triangles: Vec<Vec<i32>> = unsafe {
+        let triangles: Vec<usize> = unsafe {
             let n = delaunay.numberoftriangles as usize * 3;
             Vec::from_raw_parts(delaunay.trianglelist, n, n)
         }
-        .chunks(3)
-        .map(|x| x.to_vec())
+        .iter()
+        .map(|x| *x as usize)
         .collect();
         Delaunay { points, triangles }
     }
