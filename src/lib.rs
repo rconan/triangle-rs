@@ -227,6 +227,14 @@ impl Builder {
             ..self
         }
     }
+    pub fn set_tri_points(self, points: Vec<f64>) -> Self {
+        let mut data = self.triangulate_io;
+        data.push(TriangulateIO::Points(points));
+        Self {
+            triangulate_io: data,
+            ..self
+        }
+    }
     pub fn set_switches(self, switches: &str) -> Self {
         Self {
             switches: format!("z{}", switches),
