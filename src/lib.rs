@@ -112,6 +112,12 @@ impl Delaunay {
     pub fn n_triangles(&self) -> usize {
         self.triangles.len() / 3
     }
+    pub fn points_iter(&self) -> std::slice::Chunks<'_,f64> {
+        self.points.chunks(2)
+    }
+    pub fn triangles_iter(&self) -> std::slice::Chunks<'_,usize> {
+        self.triangles.chunks(3)
+    }
     pub fn is_point_inside(&self, point: &[f64], triangle_id: usize) -> bool {
         let triangle = self.triangles.chunks(3).nth(triangle_id).unwrap();
         let points: Vec<&[f64]> = self.points.chunks(2).collect();
