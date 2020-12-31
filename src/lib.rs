@@ -1,3 +1,5 @@
+//! A Rust library wrapped around the 2D mesh generator and Delaunay triangulator [Triangle](https://www.cs.cmu.edu/~quake/triangle.html)
+
 use plotters::prelude::*;
 use std::ffi::CString;
 use std::path::Path;
@@ -44,9 +46,12 @@ extern "C" {
     pub fn trifree(memptr: *mut ::std::os::raw::c_int);
 }
 
+/// Delaunay triangulation
 #[derive(Debug)]
 pub struct Delaunay {
+    /// Triangulation vertices as [x0,y0,x1,y1,...]
     pub points: Vec<f64>,
+    /// Indices in `points.chunks(2)`, the first 3 indices correspond to the vertices of the 1st triangle, the next 3 to the 2nd triangle, etc...
     pub triangles: Vec<usize>,
 }
 
@@ -103,24 +108,33 @@ impl TriDraw for Delaunay {
 }
 
 impl Delaunay {
+    /// Creates a new empty Delaunay triangulation
     pub fn new() -> Self {
         Self {
             points: vec![],
             triangles: vec![],
         }
     }
+    /// Returns the number of Delaunay triangles
     pub fn n_triangles(&self) -> usize {
         self.triangles.len() / 3
     }
-    pub fn points_iter(&self) -> std::slice::Chunks<'_,f64> {
+    /// Returns an iterator over the vertices, each item is a vertex (x,y) coordinates
+    pub fn points_iter(&self) -> std::slice::Chunks<'_, f64> {
         self.points.chunks(2)
     }
-    pub fn triangles_iter(&self) -> std::slice::Chunks<'_,usize> {
+    /// Returns an iterator over the vertices, each item is a vertex (x,y) coordinates
+    pub fn vertex_iter(&self) -> std::slice::Chunks<'_, f64> {
+        self.points.chunks(2)
+    }
+    /// Returns an iterator over the triangles, each item is the indices of the vertices in `points_iter`
+    pub fn triangle_iter(&self) -> std::slice::Chunks<'_, usize> {
         self.triangles.chunks(3)
     }
+    /// Returns true if a point `[x,y]` is inside the triangle given by its index (`triangle_id`) in `triangles_iter`, otherwise returns false
     pub fn is_point_inside(&self, point: &[f64], triangle_id: usize) -> bool {
-        let triangle = self.triangles.chunks(3).nth(triangle_id).unwrap();
-        let points: Vec<&[f64]> = self.points.chunks(2).collect();
+        let triangle = self.triangle_iter().nth(triangle_id).unwrap();
+        let points: Vec<&[f64]> = self.vertex_iter().collect();
         for i in 0..3 {
             let j = (i + 1) % 3;
             let vi = triangle[i];
@@ -133,6 +147,7 @@ impl Delaunay {
         }
         true
     }
+    /// Finds the index of the triangle in `triangles_iter` that contains the given point `[x,y]`
     pub fn which_contains_point(&self, point: &[f64]) -> Option<usize> {
         for k in 0..self.n_triangles() {
             if self.is_point_inside(point, k) {
@@ -141,8 +156,11 @@ impl Delaunay {
         }
         None
     }
+    /// Returns the barycentric coordinates of a point `[x,y]` with respect to the triangle that contains it
+    ///
+    /// The triangle that contains the point is specified with the indices `triangle_ids` in `vertex_iter` of the triangle vertices
     pub fn point_into_barycentric(&self, point: &[f64], triangle_ids: &[usize]) -> [f64; 3] {
-        let points: Vec<&[f64]> = self.points.chunks(2).collect();
+        let points: Vec<&[f64]> = self.vertex_iter().collect();
         let v: Vec<&[f64]> = triangle_ids.iter().map(|&i| points[i]).collect();
         let area =
             (v[1][1] - v[2][1]) * (v[0][0] - v[2][0]) + (v[2][0] - v[1][0]) * (v[0][1] - v[2][1]);
@@ -154,11 +172,14 @@ impl Delaunay {
             / area;
         [w0, w1, 1. - w0 - w1]
     }
-    pub fn barycentric_interpolation(&self, point: &[f64], val_at_points: &[f64]) -> f64 {
+    /// Linearly interpolates at a given point [x,y], values `val_at_vertices` at the Delaunay mesh vertices
+    ///
+    /// The linear interpolation is based on the barycentric coordinates of the point
+    pub fn barycentric_interpolation(&self, point: &[f64], val_at_vertices: &[f64]) -> f64 {
         match self.which_contains_point(point) {
             Some(tid) => {
-                let triangle_ids = self.triangles.chunks(3).nth(tid).unwrap();
-                let values: Vec<f64> = triangle_ids.iter().map(|&i| val_at_points[i]).collect();
+                let triangle_ids = self.triangle_iter().nth(tid).unwrap();
+                let values: Vec<f64> = triangle_ids.iter().map(|&i| val_at_vertices[i]).collect();
                 self.point_into_barycentric(point, triangle_ids)
                     .iter()
                     .zip(values.iter())
@@ -202,17 +223,20 @@ pub enum TriangulateIO {
     Points(Vec<f64>),
 }
 
+/// Delaunay triangulation builder
 pub struct Builder {
     triangulate_io: Vec<TriangulateIO>,
     switches: String,
 }
 impl Builder {
+    /// Creates a new Delaunay triangulation builder
     pub fn new() -> Self {
         Self {
             triangulate_io: vec![],
             switches: "z".to_owned(),
         }
     }
+    /// Sets the Delaunay mesh `x` and `y` vertices coordinates
     pub fn set_points(self, x: Vec<f64>, y: Vec<f64>) -> Self {
         assert!(x.len() == y.len(), "x and y are not the same length.");
         let mut data = self.triangulate_io;
@@ -227,6 +251,7 @@ impl Builder {
             ..self
         }
     }
+    /// Sets the Delaunay mesh vertices as [x0,y0,x1,y1,...]
     pub fn set_tri_points(self, points: Vec<f64>) -> Self {
         let mut data = self.triangulate_io;
         data.push(TriangulateIO::Points(points));
@@ -235,12 +260,14 @@ impl Builder {
             ..self
         }
     }
+    /// Sets triangulation [switches](https://www.cs.cmu.edu/~quake/triangle.switch.html)
     pub fn set_switches(self, switches: &str) -> Self {
         Self {
             switches: format!("z{}", switches),
             ..self
         }
     }
+    /// Compute the Delaunay mesh and returns a `Delaunay` structure
     pub fn build(self) -> Delaunay {
         use TriangulateIO::*;
         let mut tri_io: triangulateio = unsafe { std::mem::zeroed() };
@@ -284,5 +311,21 @@ impl Builder {
         .map(|x| *x as usize)
         .collect();
         Delaunay { points, triangles }
+    }
+}
+impl From<Vec<f64>> for Builder {
+    fn from(points: Vec<f64>) -> Self {
+        Self {
+            triangulate_io: vec![TriangulateIO::Points(points)],
+            switches: "z".to_owned(),
+        }
+    }
+}
+impl From<&[f64]> for Builder {
+    fn from(points: &[f64]) -> Self {
+        Self {
+            triangulate_io: vec![TriangulateIO::Points(points.to_owned())],
+            switches: "z".to_owned(),
+        }
     }
 }
