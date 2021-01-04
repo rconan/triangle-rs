@@ -1,6 +1,7 @@
 //! A Rust library wrapped around the 2D mesh generator and Delaunay triangulator [Triangle](https://www.cs.cmu.edu/~quake/triangle.html)
 
 use plotters::prelude::*;
+use serde::Serialize;
 use std::ffi::CString;
 use std::path::Path;
 
@@ -47,7 +48,7 @@ extern "C" {
 }
 
 /// Delaunay triangulation
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Delaunay {
     /// Triangulation vertices as [x0,y0,x1,y1,...]
     pub points: Vec<f64>,
@@ -225,38 +226,40 @@ pub enum TriangulateIO {
 
 /// Delaunay triangulation builder
 pub struct Builder {
-    triangulate_io: Vec<TriangulateIO>,
+    //triangulate_io: Vec<TriangulateIO>,
+    points: Vec<f64>,
     switches: String,
 }
 impl Builder {
     /// Creates a new Delaunay triangulation builder
     pub fn new() -> Self {
         Self {
-            triangulate_io: vec![],
+            //triangulate_io: vec![],
             switches: "z".to_owned(),
+            points: vec![],
         }
     }
     /// Sets the Delaunay mesh `x` and `y` vertices coordinates
     pub fn set_points(self, x: Vec<f64>, y: Vec<f64>) -> Self {
         assert!(x.len() == y.len(), "x and y are not the same length.");
-        let mut data = self.triangulate_io;
+        //let mut data = self.triangulate_io;
         let xy = x
             .into_iter()
             .zip(y.into_iter())
             .flat_map(|(x, y)| vec![x, y])
             .collect();
-        data.push(TriangulateIO::Points(xy));
+        //data.push(TriangulateIO::Points(xy));
         Self {
-            triangulate_io: data,
+            points: xy,
             ..self
         }
     }
     /// Sets the Delaunay mesh vertices as [x0,y0,x1,y1,...]
     pub fn set_tri_points(self, points: Vec<f64>) -> Self {
-        let mut data = self.triangulate_io;
-        data.push(TriangulateIO::Points(points));
+        /*let mut data = self.triangulate_io;
+        data.push(TriangulateIO::Points(points));*/
         Self {
-            triangulate_io: data,
+            points,
             ..self
         }
     }
@@ -269,7 +272,35 @@ impl Builder {
     }
     /// Compute the Delaunay mesh and returns a `Delaunay` structure
     pub fn build(self) -> Delaunay {
-        use TriangulateIO::*;
+        //use TriangulateIO::*;
+        let mut p: Vec<f64> = self.points;//vec![1.5, 1.5, 1., 0., 0., 1.];
+        let n = p.len()/2;
+        let mut tri_io: triangulateio = triangulateio {
+            pointlist: p.as_mut_ptr(),
+            pointattributelist: std::ptr::null_mut::<f64>(),
+            pointmarkerlist: std::ptr::null_mut::<i32>(),
+            numberofpoints: n as i32,
+            numberofpointattributes: 0i32,
+            trianglelist: std::ptr::null_mut::<i32>(),
+            triangleattributelist: std::ptr::null_mut::<f64>(),
+            trianglearealist: std::ptr::null_mut::<f64>(),
+            neighborlist: std::ptr::null_mut::<i32>(),
+            numberoftriangles: 0i32,
+            numberofcorners: 0i32,
+            numberoftriangleattributes: 0i32,
+            segmentlist: std::ptr::null_mut::<i32>(),
+            segmentmarkerlist: std::ptr::null_mut::<i32>(),
+            numberofsegments: 0i32,
+            holelist: std::ptr::null_mut::<f64>(),
+            numberofholes: 0i32,
+            regionlist: std::ptr::null_mut::<f64>(),
+            numberofregions: 0i32,
+            edgelist: std::ptr::null_mut::<i32>(),
+            edgemarkerlist: std::ptr::null_mut::<i32>(),
+            normlist: std::ptr::null_mut::<f64>(),
+            numberofedges: 0i32,
+        };
+        /*
         let mut tri_io: triangulateio = unsafe { std::mem::zeroed() };
         tri_io.numberofpoints = 0_i32;
         tri_io.numberofpointattributes = 0_i32;
@@ -283,11 +314,15 @@ impl Builder {
         for t in self.triangulate_io {
             match t {
                 Points(mut p) => {
+                    println!("p: {:?}",p);
                     tri_io.numberofpoints = p.len() as i32 / 2;
-                    tri_io.pointlist = p.as_mut_ptr();
+                    println!("# of points: {}",tri_io.numberofpoints);
+                    tri_io.pointlist = p.clone().as_mut_ptr() as *mut f64;
+                    println!("p: {:?}",tri_io.pointlist);
                 }
             }
         }
+        */
         let mut delaunay: triangulateio = unsafe { std::mem::zeroed() };
         let switches = CString::new(self.switches).unwrap();
         unsafe {
@@ -316,7 +351,8 @@ impl Builder {
 impl From<Vec<f64>> for Builder {
     fn from(points: Vec<f64>) -> Self {
         Self {
-            triangulate_io: vec![TriangulateIO::Points(points)],
+            //triangulate_io: vec![TriangulateIO::Points(points)],
+            points,
             switches: "z".to_owned(),
         }
     }
@@ -324,7 +360,8 @@ impl From<Vec<f64>> for Builder {
 impl From<&[f64]> for Builder {
     fn from(points: &[f64]) -> Self {
         Self {
-            triangulate_io: vec![TriangulateIO::Points(points.to_owned())],
+            //triangulate_io: vec![TriangulateIO::Points(points.to_owned())],
+            points: points.to_owned(),
             switches: "z".to_owned(),
         }
     }
