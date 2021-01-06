@@ -6,9 +6,9 @@ fn fun(x: f64, y: f64) -> f64 {
 }
 
 fn main() {
-    let p_x: Vec<f64> = vec![1.5, 1., 0., -1.,  0. , 0.];
-    let p_y: Vec<f64> = vec![1.5, 0., 1.,  0., -1.5, 0.];
-    let tri = dtri::Builder::new().set_points(p_x.clone(), p_y.clone()).build();
+    let p_x: Vec<f64> = vec![1.5, 1., 0., -1.,  0. , 0.,-0.5];
+    let p_y: Vec<f64> = vec![1.5, 0., 1.,  0., -1.5, 0.,-0.5];
+    let tri = dtri::Builder::new().set_points(p_x.clone(), p_y.clone()).set_switches("n").build();
     println!("Delaunay: {:#?}", tri);
 
 /*    (0..tri.triangles.len())

@@ -53,7 +53,12 @@ pub struct Delaunay {
     /// Triangulation vertices as [x0,y0,x1,y1,...]
     pub points: Vec<f64>,
     /// Indices in `points.chunks(2)`, the first 3 indices correspond to the vertices of the 1st triangle, the next 3 to the 2nd triangle, etc...
+    pub point_markers: Vec<usize>,
     pub triangles: Vec<usize>,
+    /// List of triangles neighbors: indices in triangles.chunks(3) (3 integers per triangle)
+    pub neighbors: Option<Vec<i32>>,
+    /// Edges endpoints: indices in points.chunks(2) (2 integers per edge)
+    pub edges: Option<Vec<usize>>,
 }
 
 pub trait TriDraw {
@@ -113,7 +118,10 @@ impl Delaunay {
     pub fn new() -> Self {
         Self {
             points: vec![],
+            point_markers: vec![],
             triangles: vec![],
+            neighbors: None,
+            edges: None,
         }
     }
     /// Returns the number of Delaunay triangles
@@ -249,19 +257,13 @@ impl Builder {
             .flat_map(|(x, y)| vec![x, y])
             .collect();
         //data.push(TriangulateIO::Points(xy));
-        Self {
-            points: xy,
-            ..self
-        }
+        Self { points: xy, ..self }
     }
     /// Sets the Delaunay mesh vertices as [x0,y0,x1,y1,...]
     pub fn set_tri_points(self, points: Vec<f64>) -> Self {
         /*let mut data = self.triangulate_io;
         data.push(TriangulateIO::Points(points));*/
-        Self {
-            points,
-            ..self
-        }
+        Self { points, ..self }
     }
     /// Sets triangulation [switches](https://www.cs.cmu.edu/~quake/triangle.switch.html)
     pub fn set_switches(self, switches: &str) -> Self {
@@ -273,8 +275,8 @@ impl Builder {
     /// Compute the Delaunay mesh and returns a `Delaunay` structure
     pub fn build(self) -> Delaunay {
         //use TriangulateIO::*;
-        let mut p: Vec<f64> = self.points;//vec![1.5, 1.5, 1., 0., 0., 1.];
-        let n = p.len()/2;
+        let mut p: Vec<f64> = self.points; //vec![1.5, 1.5, 1., 0., 0., 1.];
+        let n = p.len() / 2;
         let mut tri_io: triangulateio = triangulateio {
             pointlist: p.as_mut_ptr(),
             pointattributelist: std::ptr::null_mut::<f64>(),
@@ -324,7 +326,7 @@ impl Builder {
         }
         */
         let mut delaunay: triangulateio = unsafe { std::mem::zeroed() };
-        let switches = CString::new(self.switches).unwrap();
+        let switches = CString::new(self.switches.as_str()).unwrap();
         unsafe {
             let mut empty_tri: triangulateio = std::mem::zeroed();
             triangulate(
@@ -338,14 +340,46 @@ impl Builder {
             let n = delaunay.numberofpoints as usize * 2;
             Vec::from_raw_parts(delaunay.pointlist, n, n)
         };
+        let point_markers: Vec<usize> = unsafe {
+            let n = delaunay.numberofpoints as usize;
+            Vec::from_raw_parts(delaunay.pointmarkerlist, n, n)
+        }
+        .iter()
+            .map(|x| *x as usize)
+            .collect();
         let triangles: Vec<usize> = unsafe {
             let n = delaunay.numberoftriangles as usize * 3;
             Vec::from_raw_parts(delaunay.trianglelist, n, n)
         }
         .iter()
         .map(|x| *x as usize)
-        .collect();
-        Delaunay { points, triangles }
+            .collect();
+        let neighbors: Option<Vec<i32>> = if self.switches.contains("n") {
+            let n = delaunay.numberoftriangles as usize * 3;
+            Some(
+                unsafe { Vec::from_raw_parts(delaunay.neighborlist, n, n) }
+            )
+        } else {
+            None
+        };
+        let edges: Option<Vec<usize>> = if self.switches.contains("e") {
+            let n = delaunay.numberofedges as usize * 2;
+            Some(
+                unsafe { Vec::from_raw_parts(delaunay.edgelist, n, n) }
+                .iter()
+                    .map(|x| *x as usize)
+                    .collect(),
+            )
+        } else {
+            None
+        };
+        Delaunay {
+            points,
+            point_markers,
+            triangles,
+            neighbors,
+            edges,
+        }
     }
 }
 impl From<Vec<f64>> for Builder {
