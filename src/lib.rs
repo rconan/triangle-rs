@@ -120,15 +120,15 @@ impl Delaunay {
     pub fn vertex_par_iter(&self) -> rayon::slice::Chunks<'_, f64> {
         self.points.par_chunks(2)
     }
-    /// Returns an iterator over the triangles, each item is the indices of the vertices in `points_iter`
+    /// Returns an iterator over the triangles, each item is the indices of the vertices in `vertex_iter`
     pub fn triangle_iter(&self) -> std::slice::Chunks<'_, usize> {
         self.triangles.chunks(3)
     }
-    /// Returns an iterator over mutable triangles, each item is the indices of the vertices in `points_iter`
+    /// Returns an iterator over mutable triangles, each item is the indices of the vertices in `vertex_iter`
     pub fn triangle_iter_mut(&mut self) -> std::slice::ChunksMut<'_, usize> {
         self.triangles.chunks_mut(3)
     }
-    /// Returns a parallel iterator over the triangles, each item is the indices of the vertices in `points_iter`
+    /// Returns a parallel iterator over the triangles, each item is the indices of the vertices in `vertex_iter`
     pub fn triangle_par_iter(&self) -> rayon::slice::Chunks<'_, usize> {
         self.triangles.par_chunks(3)
     }
@@ -145,7 +145,7 @@ impl Delaunay {
         let vertices: Vec<Vec<f64>> = self.vertex_iter().map(|x| x.to_vec()).collect();
         self.triangle_iter().fold(0., |s, t| {
             let (a, b, c) = (&vertices[t[0]], &vertices[t[1]], &vertices[t[2]]);
-            s + 0.5 * ((a[0] - c[0]) * (b[1] - a[1]) - (a[0] - b[0]) * (c[1] - c[0])).abs()
+            s + 0.5 * ((a[0] - c[0]) * (b[1] - a[1]) - (a[0] - b[0]) * (c[1] - a[0])).abs()
         })
     }
     /// Returns true if a point `[x,y]` is inside the triangle given by its index (`triangle_id`) in `triangles_iter`, otherwise returns false
