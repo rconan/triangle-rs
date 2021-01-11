@@ -140,6 +140,14 @@ impl Delaunay {
     pub fn y(&self) -> Vec<f64> {
         self.vertex_iter().map(|xy| xy[1]).collect()
     }
+    // Returns the area covered by the mesh as the sum of the triangle area
+    pub fn area(&self) -> f64 {
+        let vertices: Vec<Vec<f64>> = self.vertex_iter().map(|x| x.to_vec()).collect();
+        self.triangle_iter().fold(0., |x, t| {
+            let (a, b, c) = (&vertices[t[0]], &vertices[t[1]], &vertices[t[2]]);
+            0.5 * ((a[0] - c[0]) * (b[1] - a[1]) - (a[0] - b[0]) * (c[1] - c[0])).abs()
+        })
+    }
     /// Returns true if a point `[x,y]` is inside the triangle given by its index (`triangle_id`) in `triangles_iter`, otherwise returns false
     pub fn is_point_inside(&self, point: &[f64], triangle_id: usize) -> bool {
         let triangle = self.triangle_iter().nth(triangle_id).unwrap();
