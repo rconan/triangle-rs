@@ -1,5 +1,8 @@
 //! A Rust library wrapped around the 2D mesh generator and Delaunay triangulator [Triangle](https://www.cs.cmu.edu/~quake/triangle.html)
 
+use complot::TriPlot;
+use plotters::coord::types::RangedCoordf64;
+use plotters::prelude::{Cartesian2d, ChartContext, DrawingBackend, LineSeries, RGBColor};
 use rayon::prelude::*;
 use serde::Serialize;
 use std::ffi::CString;
@@ -285,10 +288,10 @@ impl Builder {
     pub fn add_holes(&mut self, x: f64, y: f64) -> &mut Self {
         match self.holes {
             Some(ref mut h) => {
-                h.extend(vec![x,y]);
-            },
+                h.extend(vec![x, y]);
+            }
             None => {
-                self.holes = Some(vec![x,y]);
+                self.holes = Some(vec![x, y]);
             }
         }
         self
@@ -346,7 +349,7 @@ impl Builder {
             self.tri_io.segmentlist = s.as_mut_ptr();
         }
         if let Some(ref mut h) = self.holes {
-            self.tri_io.numberofholes = (h.len()/2) as i32;
+            self.tri_io.numberofholes = (h.len() / 2) as i32;
             self.tri_io.holelist = h.as_mut_ptr();
         }
         //use TriangulateIO::*;
@@ -474,3 +477,34 @@ impl fmt::Display for Builder {
     }
 }
 
+impl TriPlot for Delaunay {
+    fn mesh<'a, D: DrawingBackend>(
+        &self,
+        x: &[f64],
+        y: &[f64],
+        color: [u8; 3],
+        chart: &mut ChartContext<'a, D, Cartesian2d<RangedCoordf64, RangedCoordf64>>,
+    ) -> &Self {
+        let color = RGBColor(color[0], color[1], color[2]);
+        self.triangle_iter()
+            .map(|t| t.iter().map(|&i| (x[i], y[i])).collect::<Vec<(f64, f64)>>())
+            .for_each(|v| {
+                chart
+                    .draw_series(LineSeries::new(
+                        v.iter().cycle().take(4).map(|(x, y)| (*x, *y)),
+                        &color,
+                    ))
+                    .unwrap();
+            });
+        self
+    }
+    fn map<'a, D: DrawingBackend>(
+        &self,
+        _x: &[f64],
+        _y: &[f64],
+        _z: &[f64],
+        _chart: &mut ChartContext<'a, D, Cartesian2d<RangedCoordf64, RangedCoordf64>>,
+    ) -> &Self {
+        self
+    }
+}

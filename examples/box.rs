@@ -1,6 +1,6 @@
 use complot as plt;
-use plotters::prelude::*;
 use triangle_rs::Builder;
+use plt::TriPlot;
 
 fn main() {
     let p0 = [1., 1., -1., 1., -1., -1., 1., -1.];
@@ -14,17 +14,5 @@ fn main() {
     let tri = builder.build();
     let fig = plt::canvas("examples/box.svg");
     let mut ax = plt::chart([-2., 2., -2., 2.], &fig);
-    tri.triangle_iter()
-        .map(|t| {
-            t.iter()
-                .map(|&i| (tri.x()[i], tri.y()[i]))
-                .collect::<Vec<(f64, f64)>>()
-        })
-        .for_each(|v| {
-            ax.draw_series(LineSeries::new(
-                v.iter().cycle().take(4).map(|(x, y)| (*x, *y)),
-                &BLACK,
-            ))
-            .unwrap();
-        });
+    tri.mesh(&tri.x(), &tri.y(), [0; 3], &mut ax);
 }
