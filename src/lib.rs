@@ -1,9 +1,9 @@
 //! A Rust library wrapped around the 2D mesh generator and Delaunay triangulator [Triangle](https://www.cs.cmu.edu/~quake/triangle.html)
 
-use plotters::prelude::*;
+use rayon::prelude::*;
 use serde::Serialize;
 use std::ffi::CString;
-use std::path::Path;
+use std::fmt;
 
 //include!("bindings.rs");
 
@@ -34,6 +34,35 @@ pub struct triangulateio {
     pub normlist: *mut f64,
     pub numberofedges: ::std::os::raw::c_int,
 }
+impl Default for triangulateio {
+    fn default() -> Self {
+        triangulateio {
+            pointlist: std::ptr::null_mut::<f64>(),
+            pointattributelist: std::ptr::null_mut::<f64>(),
+            pointmarkerlist: std::ptr::null_mut::<i32>(),
+            numberofpoints: 0i32,
+            numberofpointattributes: 0i32,
+            trianglelist: std::ptr::null_mut::<i32>(),
+            triangleattributelist: std::ptr::null_mut::<f64>(),
+            trianglearealist: std::ptr::null_mut::<f64>(),
+            neighborlist: std::ptr::null_mut::<i32>(),
+            numberoftriangles: 0i32,
+            numberofcorners: 0i32,
+            numberoftriangleattributes: 0i32,
+            segmentlist: std::ptr::null_mut::<i32>(),
+            segmentmarkerlist: std::ptr::null_mut::<i32>(),
+            numberofsegments: 0i32,
+            holelist: std::ptr::null_mut::<f64>(),
+            numberofholes: 0i32,
+            regionlist: std::ptr::null_mut::<f64>(),
+            numberofregions: 0i32,
+            edgelist: std::ptr::null_mut::<i32>(),
+            edgemarkerlist: std::ptr::null_mut::<i32>(),
+            normlist: std::ptr::null_mut::<f64>(),
+            numberofedges: 0i32,
+        }
+    }
+}
 
 extern "C" {
     pub fn triangulate(
@@ -53,64 +82,12 @@ pub struct Delaunay {
     /// Triangulation vertices as [x0,y0,x1,y1,...]
     pub points: Vec<f64>,
     /// Indices in `points.chunks(2)`, the first 3 indices correspond to the vertices of the 1st triangle, the next 3 to the 2nd triangle, etc...
-    pub point_markers: Vec<usize>,
+    pub point_markers: Vec<i32>,
     pub triangles: Vec<usize>,
     /// List of triangles neighbors: indices in triangles.chunks(3) (3 integers per triangle)
     pub neighbors: Option<Vec<i32>>,
     /// Edges endpoints: indices in points.chunks(2) (2 integers per edge)
     pub edges: Option<Vec<usize>>,
-}
-
-pub trait TriDraw {
-    fn mesh<T: AsRef<Path>>(&self, path: T, lim: f64);
-}
-impl TriDraw for Delaunay {
-    fn mesh<T: AsRef<Path>>(&self, path: T, lim: f64) {
-        let p_x: Vec<_> = self.points.chunks(2).map(|x| x[0]).collect();
-        let p_y: Vec<_> = self.points.chunks(2).map(|x| x[1]).collect();
-        let plot = SVGBackend::new(&path, (768, 768)).into_drawing_area();
-        plot.fill(&WHITE).unwrap();
-        let mut chart = ChartBuilder::on(&plot)
-            .set_label_area_size(LabelAreaPosition::Left, 40)
-            .set_label_area_size(LabelAreaPosition::Bottom, 40)
-            .build_cartesian_2d(-lim..lim, -lim..lim)
-            .unwrap();
-        chart.configure_mesh().draw().unwrap();
-        let vertices: Vec<Vec<(f64, f64)>> = self
-            .triangles
-            .chunks(3)
-            .map(|t| {
-                t.iter()
-                    .map(|&i| (p_x[i as usize], p_y[i as usize]))
-                    .collect::<Vec<(f64, f64)>>()
-            })
-            .collect();
-        /*
-        vertices.iter().for_each(|v| {
-            chart
-                .draw_series(std::iter::once(Polygon::new(v.clone(), &RED.mix(0.2))))
-                .unwrap();
-        });
-        */
-        vertices.iter().for_each(|v| {
-            chart
-                .draw_series(LineSeries::new(
-                    v.iter().cycle().take(4).map(|(x, y)| (*x, *y)),
-                    &BLACK,
-                ))
-                .unwrap();
-        });
-        /*
-        chart
-            .draw_series(
-                p_x.iter()
-                    .cloned()
-                    .zip(p_y.iter().cloned())
-                    .map(|p| Circle::new(p, 3, RED.filled())),
-            )
-            .unwrap();
-        */
-    }
 }
 
 impl Delaunay {
@@ -129,16 +106,36 @@ impl Delaunay {
         self.triangles.len() / 3
     }
     /// Returns an iterator over the vertices, each item is a vertex (x,y) coordinates
-    pub fn points_iter(&self) -> std::slice::Chunks<'_, f64> {
-        self.points.chunks(2)
-    }
-    /// Returns an iterator over the vertices, each item is a vertex (x,y) coordinates
     pub fn vertex_iter(&self) -> std::slice::Chunks<'_, f64> {
         self.points.chunks(2)
+    }
+    /// Returns an iterator over mutable vertices, each item is a vertex (x,y) coordinates
+    pub fn vertex_iter_mut(&mut self) -> std::slice::ChunksMut<'_, f64> {
+        self.points.chunks_mut(2)
+    }
+    /// Returns a parallel iterator over the vertices, each item is a vertex (x,y) coordinates
+    pub fn vertex_par_iter(&self) -> rayon::slice::Chunks<'_, f64> {
+        self.points.par_chunks(2)
     }
     /// Returns an iterator over the triangles, each item is the indices of the vertices in `points_iter`
     pub fn triangle_iter(&self) -> std::slice::Chunks<'_, usize> {
         self.triangles.chunks(3)
+    }
+    /// Returns an iterator over mutable triangles, each item is the indices of the vertices in `points_iter`
+    pub fn triangle_iter_mut(&mut self) -> std::slice::ChunksMut<'_, usize> {
+        self.triangles.chunks_mut(3)
+    }
+    /// Returns a parallel iterator over the triangles, each item is the indices of the vertices in `points_iter`
+    pub fn triangle_par_iter(&self) -> rayon::slice::Chunks<'_, usize> {
+        self.triangles.par_chunks(3)
+    }
+    /// Gets node x coordinates
+    pub fn x(&self) -> Vec<f64> {
+        self.vertex_iter().map(|xy| xy[0]).collect()
+    }
+    /// Gets node y coordinates
+    pub fn y(&self) -> Vec<f64> {
+        self.vertex_iter().map(|xy| xy[1]).collect()
     }
     /// Returns true if a point `[x,y]` is inside the triangle given by its index (`triangle_id`) in `triangles_iter`, otherwise returns false
     pub fn is_point_inside(&self, point: &[f64], triangle_id: usize) -> bool {
@@ -233,10 +230,19 @@ pub enum TriangulateIO {
 }
 
 /// Delaunay triangulation builder
+#[derive(Debug)]
 pub struct Builder {
     //triangulate_io: Vec<TriangulateIO>,
     points: Vec<f64>,
+    segments: Option<Vec<i32>>,
+    n_segments: i32,
+    holes: Option<Vec<f64>>,
+    n_holes: i32,
     switches: String,
+    boundary_marker: i32,
+    point_markers: Option<Vec<i32>>,
+    segment_markers: Option<Vec<i32>>,
+    tri_io: triangulateio,
 }
 impl Builder {
     /// Creates a new Delaunay triangulation builder
@@ -245,19 +251,47 @@ impl Builder {
             //triangulate_io: vec![],
             switches: "z".to_owned(),
             points: vec![],
+            segments: None,
+            n_segments: 032,
+            holes: None,
+            n_holes: 0i32,
+            boundary_marker: 1i32,
+            point_markers: None,
+            segment_markers: None,
+            tri_io: triangulateio::default(),
         }
     }
     /// Sets the Delaunay mesh `x` and `y` vertices coordinates
-    pub fn set_points(self, x: Vec<f64>, y: Vec<f64>) -> Self {
+    pub fn add_nodes(&mut self, nodes: &[f64]) -> &mut Self {
+        self.points.extend(nodes);
+        self
+    }
+    pub fn set_segments(self, x: Vec<i32>, y: Vec<i32>) -> Self {
         assert!(x.len() == y.len(), "x and y are not the same length.");
         //let mut data = self.triangulate_io;
+        let n = x.len() as i32;
         let xy = x
             .into_iter()
             .zip(y.into_iter())
             .flat_map(|(x, y)| vec![x, y])
             .collect();
         //data.push(TriangulateIO::Points(xy));
-        Self { points: xy, ..self }
+        Self {
+            segments: Some(xy),
+            n_segments: n,
+            ..self
+        }
+    }
+    pub fn add_holes(&mut self, x: f64, y: f64) -> &mut Self {
+        match self.holes {
+            Some(ref mut h) => {
+                h.extend(vec![x,y]);
+            },
+            None => {
+                self.holes = Some(vec![x,y]);
+            }
+        }
+        self
     }
     /// Sets the Delaunay mesh vertices as [x0,y0,x1,y1,...]
     pub fn set_tri_points(self, points: Vec<f64>) -> Self {
@@ -265,73 +299,64 @@ impl Builder {
         data.push(TriangulateIO::Points(points));*/
         Self { points, ..self }
     }
+    /// Adds a closed polygon given its vertices [x1,y1,x2,y2,...]
+    pub fn add_polygon(&mut self, vertices: &[f64]) -> &mut Self {
+        //let boundary_marker = self.boundary_marker + 1;
+        let a = (self.points.len() / 2) as i32;
+        let n_segments = (vertices.len() / 2) as i32;
+        /*
+        let point_markers = match self.point_markers.clone() {
+            Some(mut p_m) => {
+                p_m.extend(vec![boundary_marker; n_segments as usize]);
+                p_m
+            }
+            None => vec![boundary_marker; n_segments as usize],
+        };
+        let segment_markers = match self.segment_markers.clone() {
+            Some(mut s_m) => {
+                s_m.extend(vec![boundary_marker; n_segments as usize]);
+                s_m
+            }
+            None => vec![boundary_marker; n_segments as usize],
+        };
+        println!("point markers: {:?}", point_markers);*/
+        let segments_vertices = (0..n_segments).flat_map(|k| vec![a + k, a + (k + 1) % n_segments]);
+        match self.segments {
+            Some(ref mut s) => {
+                s.extend(segments_vertices);
+            }
+            None => {
+                self.segments = Some(segments_vertices.collect::<Vec<i32>>());
+            }
+        };
+        self.points.extend(vertices);
+        self
+    }
     /// Sets triangulation [switches](https://www.cs.cmu.edu/~quake/triangle.switch.html)
-    pub fn set_switches(self, switches: &str) -> Self {
-        Self {
-            switches: format!("z{}", switches),
-            ..self
-        }
+    pub fn set_switches(&mut self, switches: &str) -> &mut Self {
+        self.switches = format!("z{}", switches);
+        self
     }
     /// Compute the Delaunay mesh and returns a `Delaunay` structure
-    pub fn build(self) -> Delaunay {
-        //use TriangulateIO::*;
-        let mut p: Vec<f64> = self.points; //vec![1.5, 1.5, 1., 0., 0., 1.];
-        let n = p.len() / 2;
-        let mut tri_io: triangulateio = triangulateio {
-            pointlist: p.as_mut_ptr(),
-            pointattributelist: std::ptr::null_mut::<f64>(),
-            pointmarkerlist: std::ptr::null_mut::<i32>(),
-            numberofpoints: n as i32,
-            numberofpointattributes: 0i32,
-            trianglelist: std::ptr::null_mut::<i32>(),
-            triangleattributelist: std::ptr::null_mut::<f64>(),
-            trianglearealist: std::ptr::null_mut::<f64>(),
-            neighborlist: std::ptr::null_mut::<i32>(),
-            numberoftriangles: 0i32,
-            numberofcorners: 0i32,
-            numberoftriangleattributes: 0i32,
-            segmentlist: std::ptr::null_mut::<i32>(),
-            segmentmarkerlist: std::ptr::null_mut::<i32>(),
-            numberofsegments: 0i32,
-            holelist: std::ptr::null_mut::<f64>(),
-            numberofholes: 0i32,
-            regionlist: std::ptr::null_mut::<f64>(),
-            numberofregions: 0i32,
-            edgelist: std::ptr::null_mut::<i32>(),
-            edgemarkerlist: std::ptr::null_mut::<i32>(),
-            normlist: std::ptr::null_mut::<f64>(),
-            numberofedges: 0i32,
-        };
-        /*
-        let mut tri_io: triangulateio = unsafe { std::mem::zeroed() };
-        tri_io.numberofpoints = 0_i32;
-        tri_io.numberofpointattributes = 0_i32;
-        tri_io.numberoftriangles = 0_i32;
-        tri_io.numberofcorners = 0_i32;
-        tri_io.numberoftriangleattributes = 0_i32;
-        tri_io.numberofsegments = 0_i32;
-        tri_io.numberofholes = 0_i32;
-        tri_io.numberofregions = 0_i32;
-        tri_io.numberofedges = 0_i32;
-        for t in self.triangulate_io {
-            match t {
-                Points(mut p) => {
-                    println!("p: {:?}",p);
-                    tri_io.numberofpoints = p.len() as i32 / 2;
-                    println!("# of points: {}",tri_io.numberofpoints);
-                    tri_io.pointlist = p.clone().as_mut_ptr() as *mut f64;
-                    println!("p: {:?}",tri_io.pointlist);
-                }
-            }
+    pub fn build(&mut self) -> Delaunay {
+        self.tri_io.numberofpoints = (self.points.len() / 2) as i32;
+        self.tri_io.pointlist = self.points.as_mut_ptr();
+        if let Some(ref mut s) = self.segments {
+            self.tri_io.numberofsegments = (s.len() / 2) as i32;
+            self.tri_io.segmentlist = s.as_mut_ptr();
         }
-        */
+        if let Some(ref mut h) = self.holes {
+            self.tri_io.numberofholes = (h.len()/2) as i32;
+            self.tri_io.holelist = h.as_mut_ptr();
+        }
+        //use TriangulateIO::*;
         let mut delaunay: triangulateio = unsafe { std::mem::zeroed() };
         let switches = CString::new(self.switches.as_str()).unwrap();
         unsafe {
             let mut empty_tri: triangulateio = std::mem::zeroed();
             triangulate(
                 switches.into_raw(),
-                &mut tri_io,
+                &mut self.tri_io,
                 &mut delaunay,
                 &mut empty_tri,
             )
@@ -340,25 +365,20 @@ impl Builder {
             let n = delaunay.numberofpoints as usize * 2;
             Vec::from_raw_parts(delaunay.pointlist, n, n)
         };
-        let point_markers: Vec<usize> = unsafe {
+        let point_markers: Vec<i32> = unsafe {
             let n = delaunay.numberofpoints as usize;
             Vec::from_raw_parts(delaunay.pointmarkerlist, n, n)
-        }
-        .iter()
-            .map(|x| *x as usize)
-            .collect();
+        };
         let triangles: Vec<usize> = unsafe {
             let n = delaunay.numberoftriangles as usize * 3;
             Vec::from_raw_parts(delaunay.trianglelist, n, n)
         }
         .iter()
         .map(|x| *x as usize)
-            .collect();
+        .collect();
         let neighbors: Option<Vec<i32>> = if self.switches.contains("n") {
             let n = delaunay.numberoftriangles as usize * 3;
-            Some(
-                unsafe { Vec::from_raw_parts(delaunay.neighborlist, n, n) }
-            )
+            Some(unsafe { Vec::from_raw_parts(delaunay.neighborlist, n, n) })
         } else {
             None
         };
@@ -366,7 +386,7 @@ impl Builder {
             let n = delaunay.numberofedges as usize * 2;
             Some(
                 unsafe { Vec::from_raw_parts(delaunay.edgelist, n, n) }
-                .iter()
+                    .iter()
                     .map(|x| *x as usize)
                     .collect(),
             )
@@ -388,6 +408,14 @@ impl From<Vec<f64>> for Builder {
             //triangulate_io: vec![TriangulateIO::Points(points)],
             points,
             switches: "z".to_owned(),
+            segments: None,
+            n_segments: 032,
+            holes: None,
+            n_holes: 0i32,
+            boundary_marker: 1i32,
+            point_markers: None,
+            segment_markers: None,
+            tri_io: triangulateio::default(),
         }
     }
 }
@@ -397,6 +425,52 @@ impl From<&[f64]> for Builder {
             //triangulate_io: vec![TriangulateIO::Points(points.to_owned())],
             points: points.to_owned(),
             switches: "z".to_owned(),
+            segments: None,
+            n_segments: 032,
+            holes: None,
+            n_holes: 0i32,
+            boundary_marker: 1i32,
+            point_markers: None,
+            segment_markers: None,
+            tri_io: triangulateio::default(),
         }
     }
 }
+
+impl fmt::Display for Builder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let nodes_1st_line = format!("{} 2 0 0", self.points.len() / 2);
+        let nodes = self
+            .points
+            .chunks(2)
+            .enumerate()
+            .map(|(k, xy)| format!("{}  {} {}", k, xy[0], xy[1]))
+            .collect::<Vec<String>>()
+            .join("\n");
+        let segs = match &self.segments {
+            Some(s) => {
+                let segs_1st_line = format!("{} 0", s.len() / 2);
+                let segs = s
+                    .chunks(2)
+                    .enumerate()
+                    .map(|(k, xy)| format!("{}  {} {}", k, xy[0], xy[1]))
+                    .collect::<Vec<String>>()
+                    .join("\n");
+                let holes_1st_line = format!("{}", self.n_holes);
+                let holes = match &self.holes {
+                    Some(h) => h
+                        .chunks(2)
+                        .enumerate()
+                        .map(|(k, xy)| format!("{}  {} {}", k, xy[0], xy[1]))
+                        .collect::<Vec<String>>()
+                        .join("\n"),
+                    None => "".to_owned(),
+                };
+                [segs_1st_line, segs, holes_1st_line, holes].join("\n")
+            }
+            None => "".to_owned(),
+        };
+        write!(f, "{}", [nodes_1st_line, nodes, segs].join("\n"))
+    }
+}
+

@@ -10,7 +10,9 @@ cc = "1.0.66"
 
 [dev-dependencies]
 plotters = "0.3.0"
+spade = "1.8.2"
+complot = { git = "https://github.com/rconan/complot.git", branch = "main" }
 
 [dependencies]
-plotters = "0.3.0"
+rayon = "1.5.0"
 serde = { version = "1.0.118", features = ["derive"] }
