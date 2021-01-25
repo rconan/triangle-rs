@@ -523,6 +523,6 @@ mod tests {
     #[test]
     fn area() {
         let tri = Builder::new().add_nodes(&[0.,0.]).add_polygon(&[1.,0.,0.,1.,-1.,0.,0.,-1.]).build();
-        println!("area: {}",tri.area());
+        assert_eq!(tri.area(),2.)
     }
 }
