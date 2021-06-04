@@ -80,7 +80,7 @@ extern "C" {
 }
 
 /// Delaunay triangulation
-#[derive(Debug, Serialize)]
+#[derive(Default, Debug, Serialize)]
 pub struct Delaunay {
     /// Triangulation vertices as [x0,y0,x1,y1,...]
     pub points: Vec<f64>,
@@ -103,6 +103,10 @@ impl Delaunay {
             neighbors: None,
             edges: None,
         }
+    }
+    /// Returns the number of vertices
+    pub fn n_vertices(&self) -> usize {
+        self.points.len() / 2
     }
     /// Returns the number of Delaunay triangles
     pub fn n_triangles(&self) -> usize {
@@ -140,13 +144,56 @@ impl Delaunay {
     pub fn y(&self) -> Vec<f64> {
         self.vertex_iter().map(|xy| xy[1]).collect()
     }
-    // Returns the area covered by the mesh as the sum of the triangle area
+    /// Returns the area covered by the mesh as the sum of the triangle area
     pub fn area(&self) -> f64 {
         let vertices: Vec<Vec<f64>> = self.vertex_iter().map(|x| x.to_vec()).collect();
         self.triangle_iter().fold(0., |s, t| {
             let (a, b, c) = (&vertices[t[0]], &vertices[t[1]], &vertices[t[2]]);
             s + 0.5 * ((a[0] - c[0]) * (b[1] - a[1]) - (a[0] - b[0]) * (c[1] - a[1])).abs()
         })
+    }
+    /// Returns the area covered by the mesh as the sum of the triangle area given the triangle vertices
+    /// The vertices ordering must the same than the stored `Delaunay` triangles
+    pub fn mesh_area(&self, vertices: &[[f64; 3]]) -> f64 {
+        let vertices: Vec<Vec<f64>> = self.vertex_iter().map(|x| x.to_vec()).collect();
+        self.triangle_iter().fold(0., |s, t| {
+            let (a, b, c) = (&vertices[t[0]], &vertices[t[1]], &vertices[t[2]]);
+            s + 0.5 * ((a[0] - c[0]) * (b[1] - a[1]) - (a[0] - b[0]) * (c[1] - a[1])).abs()
+        })
+    }
+    pub fn average(&self, vertices: &[[f64; 3]], data: &[f64]) -> f64 {
+        self.triangle_iter().fold(0., |s, t| {
+            let (a, b, c) = (&vertices[t[0]], &vertices[t[1]], &vertices[t[2]]);
+            let ta = 0.5 * ((a[0] - c[0]) * (b[1] - a[1]) - (a[0] - b[0]) * (c[1] - a[1])).abs();
+            let sa = t.iter().fold(0., |m, i| m + data[*i]) / 3 as f64;
+            s + ta * sa
+        })
+    }
+    pub fn average_with<F: Fn(f64) -> f64>(
+        &self,
+        vertices: &[[f64; 3]],
+        data: &[f64],
+        f: F,
+    ) -> f64 {
+        self.triangle_iter().fold(0., |s, t| {
+            let (a, b, c) = (&vertices[t[0]], &vertices[t[1]], &vertices[t[2]]);
+            let ta = 0.5 * ((a[0] - c[0]) * (b[1] - a[1]) - (a[0] - b[0]) * (c[1] - a[1])).abs();
+            let sa = t.iter().fold(0., |m, i| m + f(data[*i])) / 3 as f64;
+            s + ta * sa
+        })
+    }
+    /// Returns the dot product of two vector `a` and `b` sampled on the Delaunay mesh
+    pub fn dot(&self, v_a: &[f64], v_b: &[f64]) -> f64 {
+        assert_eq!(v_a.len(), self.n_vertices());
+        assert_eq!(v_b.len(), self.n_vertices());
+        let vertices: Vec<Vec<f64>> = self.vertex_iter().map(|x| x.to_vec()).collect();
+        self.triangle_iter().fold(0., |s, t| {
+            let (a, b, c) = (&vertices[t[0]], &vertices[t[1]], &vertices[t[2]]);
+            let ta = 0.5 * ((a[0] - c[0]) * (b[1] - a[1]) - (a[0] - b[0]) * (c[1] - a[1])).abs();
+            let sa = t.iter().fold(0., |m, i| m + v_a[*i]) / 3 as f64;
+            let sb = t.iter().fold(0., |m, i| m + v_b[*i]) / 3 as f64;
+            s + ta * sa * sb
+        }) / self.area()
     }
     /// Returns true if a point `[x,y]` is inside the triangle given by its index (`triangle_id`) in `triangles_iter`, otherwise returns false
     pub fn is_point_inside(&self, point: &[f64], triangle_id: usize) -> bool {
@@ -522,7 +569,10 @@ mod tests {
     use super::*;
     #[test]
     fn area() {
-        let tri = Builder::new().add_nodes(&[0.,0.]).add_polygon(&[1.,0.,0.,1.,-1.,0.,0.,-1.]).build();
-        assert_eq!(tri.area(),2.)
+        let tri = Builder::new()
+            .add_nodes(&[0., 0.])
+            .add_polygon(&[1., 0., 0., 1., -1., 0., 0., -1.])
+            .build();
+        assert_eq!(tri.area(), 2.)
     }
 }
