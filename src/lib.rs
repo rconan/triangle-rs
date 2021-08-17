@@ -1,12 +1,15 @@
 //! A Rust library wrapped around the 2D mesh generator and Delaunay triangulator [Triangle](https://www.cs.cmu.edu/~quake/triangle.html)
 
-use complot::TriPlot;
+use complot::{tri::TriPlot, Config};
 use plotters::coord::types::RangedCoordf64;
 use plotters::prelude::{Cartesian2d, ChartContext, DrawingBackend, LineSeries, RGBColor};
 use rayon::prelude::*;
 use serde::Serialize;
+use serde_pickle as pkl;
 use std::ffi::CString;
 use std::fmt;
+use std::{error::Error, ops::Range};
+use std::{fs::File, path::Path};
 
 //include!("bindings.rs");
 
@@ -144,6 +147,24 @@ impl Delaunay {
     pub fn y(&self) -> Vec<f64> {
         self.vertex_iter().map(|xy| xy[1]).collect()
     }
+    /// Returns an interator over the triangles, each item is a vector of the 3 (x,y) vertices coordinates
+    pub fn triangle_vertex_iter(&self) -> impl Iterator<Item = Vec<(f64, f64)>> + '_ {
+        let x = self.x();
+        let y = self.y();
+        self.triangle_iter()
+            .map(move |t| t.iter().map(|&i| (x[i], y[i])).collect::<Vec<(f64, f64)>>())
+    }
+
+    /// Returns the triangle areas
+    pub fn triangle_areas(&self) -> Vec<f64> {
+        let vertices: Vec<Vec<f64>> = self.vertex_iter().map(|x| x.to_vec()).collect();
+        self.triangle_iter()
+            .map(|t| {
+                let (a, b, c) = (&vertices[t[0]], &vertices[t[1]], &vertices[t[2]]);
+                0.5 * ((a[0] - c[0]) * (b[1] - a[1]) - (a[0] - b[0]) * (c[1] - a[1])).abs()
+            })
+            .collect()
+    }
     /// Returns the area covered by the mesh as the sum of the triangle area
     pub fn area(&self) -> f64 {
         let vertices: Vec<Vec<f64>> = self.vertex_iter().map(|x| x.to_vec()).collect();
@@ -152,9 +173,8 @@ impl Delaunay {
             s + 0.5 * ((a[0] - c[0]) * (b[1] - a[1]) - (a[0] - b[0]) * (c[1] - a[1])).abs()
         })
     }
-    /// Returns the area covered by the mesh as the sum of the triangle area given the triangle vertices
-    /// The vertices ordering must the same than the stored `Delaunay` triangles
-    pub fn mesh_area(&self, vertices: &[[f64; 3]]) -> f64 {
+    /// Returns the area covered by the mesh as the sum of the Delaunay triangles area
+    pub fn mesh_area(&self) -> f64 {
         let vertices: Vec<Vec<f64>> = self.vertex_iter().map(|x| x.to_vec()).collect();
         self.triangle_iter().fold(0., |s, t| {
             let (a, b, c) = (&vertices[t[0]], &vertices[t[1]], &vertices[t[2]]);
@@ -280,7 +300,38 @@ impl Delaunay {
             None => std::f64::NAN,
         }
     }
-    */
+     */
+    pub fn dump<T: AsRef<Path>>(&self, filename: T) -> Result<(), Box<dyn Error>> {
+        pkl::to_writer(&mut File::create(filename)?, self, true)?;
+        Ok(())
+    }
+}
+
+impl fmt::Display for Delaunay {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let areas = self.triangle_areas();
+        let areas_min = areas.iter().cloned().fold(f64::INFINITY, f64::min);
+        let areas_max = areas.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let areas_sum = areas.iter().sum::<f64>();
+        let areas_mean = areas_sum / areas.len() as f64;
+        write!(
+            f,
+            r#"Delaunay triangulation:
+ - vertices: {}
+ - triangles: {}
+ - triangles area: 
+   - min : {:.6}
+   - max : {:.6}
+   - mean: {:.6}
+   - sum : {:.6}"#,
+            self.n_vertices(),
+            self.n_triangles(),
+            areas_min,
+            areas_max,
+            areas_mean,
+            areas_sum
+        )
+    }
 }
 
 pub enum TriangulateIO {
@@ -409,6 +460,7 @@ impl Builder {
         }
         //use TriangulateIO::*;
         let mut delaunay: triangulateio = unsafe { std::mem::zeroed() };
+        //        println!("Delaunay triangulation with  switches: {}", self.switches);
         let switches = CString::new(self.switches.as_str()).unwrap();
         unsafe {
             let mut empty_tri: triangulateio = std::mem::zeroed();
@@ -561,6 +613,16 @@ impl TriPlot for Delaunay {
         _chart: &mut ChartContext<'a, D, Cartesian2d<RangedCoordf64, RangedCoordf64>>,
     ) -> &Self {
         self
+    }
+    fn heatmap(
+        &self,
+        _x: &[f64],
+        _y: &[f64],
+        _z: &[f64],
+        _range: Range<f64>,
+        _config: Option<Config>,
+    ) -> Result<(), Box<dyn Error>> {
+        Ok(())
     }
 }
 

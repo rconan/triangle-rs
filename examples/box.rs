@@ -1,6 +1,6 @@
 use complot as plt;
+use plt::triplot::TriPlot;
 use triangle_rs::Builder;
-use plt::TriPlot;
 
 fn main() {
     let p0 = [1., 1., -1., 1., -1., -1., 1., -1.];
