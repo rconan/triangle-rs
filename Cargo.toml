@@ -14,6 +14,4 @@ spade = "1.8.2"
 [dependencies]
 rayon = "1.5.0"
 serde = { version = "1.0.118", features = ["derive"] }
-plotters = "0.3.0"
 serde-pickle = "0.6.2"
-complot = { git = "https://github.com/rconan/complot.git", branch = "main", features = ["tri"] }

@@ -1,14 +1,11 @@
 //! A Rust library wrapped around the 2D mesh generator and Delaunay triangulator [Triangle](https://www.cs.cmu.edu/~quake/triangle.html)
 
-use complot::{tri::TriPlot, Config};
-use plotters::coord::types::RangedCoordf64;
-use plotters::prelude::{Cartesian2d, ChartContext, DrawingBackend, LineSeries, RGBColor};
 use rayon::prelude::*;
 use serde::Serialize;
 use serde_pickle as pkl;
+use std::error::Error;
 use std::ffi::CString;
 use std::fmt;
-use std::{error::Error, ops::Range};
 use std::{fs::File, path::Path};
 
 //include!("bindings.rs");
@@ -584,6 +581,7 @@ impl fmt::Display for Builder {
     }
 }
 
+/*
 impl TriPlot for Delaunay {
     fn mesh<'a, D: DrawingBackend>(
         &self,
@@ -625,6 +623,7 @@ impl TriPlot for Delaunay {
         Ok(())
     }
 }
+ */
 
 #[cfg(test)]
 mod tests {
