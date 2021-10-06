@@ -3,6 +3,12 @@ name = "triangle-rs"
 version = "0.1.0"
 authors = ["Rod Conan <rconan@gmto.org>"]
 edition = "2018"
+license = "MIT"
+description = "A Rust binder for the 2D mesh generator and Delaunay triangulator Triangle"
+repository = "https://github.com/rconan/triangle-rs"
+documentation = "https://docs.rs/triangle-rs"
+readme = "README.md"
+categories = ["algorithms", "mathematics", "science", "simulation"]
 
 
 [build-dependencies]
