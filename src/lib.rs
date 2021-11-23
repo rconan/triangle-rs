@@ -3,10 +3,7 @@
 use rayon::prelude::*;
 use serde::Serialize;
 use serde_pickle as pkl;
-use std::error::Error;
-use std::ffi::CString;
-use std::fmt;
-use std::{fs::File, path::Path};
+use std::{error::Error, ffi::CString, fmt, fs::File, path::Path};
 
 //include!("bindings.rs");
 
@@ -103,6 +100,10 @@ impl Delaunay {
             neighbors: None,
             edges: None,
         }
+    }
+    /// Returns the `Delaunay` builder
+    pub fn builder() -> Builder {
+        Builder::new()
     }
     /// Returns the number of vertices
     pub fn n_vertices(&self) -> usize {
