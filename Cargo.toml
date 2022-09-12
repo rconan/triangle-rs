@@ -1,6 +1,6 @@
 [package]
 name = "triangle-rs"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Rod Conan <rconan@gmto.org>"]
 edition = "2018"
 license = "MIT"

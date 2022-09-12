@@ -369,7 +369,7 @@ impl Builder {
         }
     }
     /// Sets the Delaunay mesh `x` and `y` vertices coordinates
-    pub fn add_nodes(&mut self, nodes: &[f64]) -> &mut Self {
+    pub fn add_nodes(mut self, nodes: &[f64]) -> Self {
         self.points.extend(nodes);
         self
     }
@@ -440,7 +440,7 @@ impl Builder {
         self
     }
     /// Sets triangulation [switches](https://www.cs.cmu.edu/~quake/triangle.switch.html)
-    pub fn set_switches(&mut self, switches: &str) -> &mut Self {
+    pub fn set_switches(mut self, switches: &str) -> Self {
         self.switches = format!("z{}", switches);
         self
     }
