@@ -3,7 +3,7 @@
 use rayon::prelude::*;
 use serde::Serialize;
 use serde_pickle as pkl;
-use std::{error::Error, ffi::CString, fmt, fs::File, path::Path};
+use std::{error::Error, ffi::CString, fmt, fs::File, path::Path, slice};
 
 //include!("bindings.rs");
 
@@ -471,15 +471,21 @@ impl Builder {
         };
         let points: Vec<f64> = unsafe {
             let n = delaunay.numberofpoints as usize * 2;
-            Vec::from_raw_parts(delaunay.pointlist, n, n)
+            let buffer = slice::from_raw_parts(delaunay.pointlist, n).to_vec();
+            trifree(delaunay.pointlist as _);
+            buffer
         };
         let point_markers: Vec<i32> = unsafe {
             let n = delaunay.numberofpoints as usize;
-            Vec::from_raw_parts(delaunay.pointmarkerlist, n, n)
+            let buffer = slice::from_raw_parts(delaunay.pointmarkerlist, n).to_vec();
+            trifree(delaunay.pointmarkerlist as _);
+            buffer
         };
         let triangles: Vec<usize> = unsafe {
             let n = delaunay.numberoftriangles as usize * 3;
-            Vec::from_raw_parts(delaunay.trianglelist, n, n)
+            let buffer = slice::from_raw_parts(delaunay.trianglelist, n).to_vec();
+            trifree(delaunay.trianglelist as _);
+            buffer
         }
         .iter()
         .map(|x| *x as usize)
